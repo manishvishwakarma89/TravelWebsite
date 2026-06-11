@@ -18,9 +18,12 @@ spec:
     spec:
       containers:
         - name: frontend
-          image: trainwithshubham/wanderlust-frontend-beta:v2.2
+          image: trainwithshubham/wanderlust-frontend-beta:latest  
           ports:
             - containerPort: 5173
+          env:
+            - name: VITE_API_PATH
+              value: "http://18.216.140.129:30000"
 ---
 apiVersion: v1
 kind: Service
@@ -34,5 +37,11 @@ spec:
   ports:
     - port: 5173
       targetPort: 5173
-      protocol: TCP
+      nodePort: 30001
+
+
+
+
+      
+      
       nodePort: 31000
