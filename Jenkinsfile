@@ -1,128 +1,84 @@
 @Library('Shared') _
-pipeline {
-    agent {label 'MyAgent'}
-    
-    environment{
-        SONAR_HOME = tool "Sonar"
-    }
-    
+pipeline{
+    agent { label 'MyAgent'}
     parameters {
-        string(name: 'FRONTEND_DOCKER_TAG', defaultValue: '', description: 'Setting docker image for latest push')
-        string(name: 'BACKEND_DOCKER_TAG', defaultValue: '', description: 'Setting docker image for latest push')
+        string(
+            name: 'BACKEND_DOCKER_TAG',
+            defaultValue: 'latest',
+            description: 'Backend Docker Image Tag'
+        )
+
+        string(
+            name: 'FRONTEND_DOCKER_TAG',
+            defaultValue: 'latest',
+            description: 'Frontend Docker Image Tag'
+        )
     }
     
-    stages {
-        stage("Validate Parameters") {
-            steps {
-                script {
-                    if (params.FRONTEND_DOCKER_TAG == '' || params.BACKEND_DOCKER_TAG == '') {
-                        error("FRONTEND_DOCKER_TAG and BACKEND_DOCKER_TAG must be provided.")
-                    }
-                }
-            }
-        }
-        stage("Workspace cleanup"){
+    stages{
+        stage("Code Clone"){
             steps{
                 script{
-                    cleanWs()
+                    sh "whoami"
+                    clone("https://github.com/manishvishwakarma89/TravelWebsite.git","main")
                 }
             }
         }
-        
-        stage('Git: Code Checkout') {
-            steps {
-                script{
-                    code_checkout("https://github.com/manishvishwakarma89/TravelWebsite.git","main")
-                }
-            }
-        }
-        
-        stage("Trivy: Filesystem scan"){
+    
+        stage("Code Build"){
             steps{
                 script{
-                    trivy_scan()
+                   dir('backend'){
+                    docker_build(
+                        "wanderlust-backend-beta",
+                        params.BACKEND_DOCKER_TAG,
+                        "manishvishwa801"
+                    )
+                }
+                
+                dir('frontend'){
+                    docker_build(
+                        "wanderlust-frontend-beta",
+                        params.FRONTEND_DOCKER_TAG,
+                        "manishvishwa801"
+                    )
+                }
+                   
                 }
             }
         }
 
-        stage("OWASP: Dependency check"){
+        stage("Push to DockerHub"){
             steps{
                 script{
-                    owasp_dependency()
-                }
-            }
-        }
-        
-        stage("SonarQube: Code Analysis"){
-            steps{
-                script{
-                    sonarqube_analysis("Sonar","wanderlust","wanderlust")
-                }
-            }
-        }
-        
-        stage("SonarQube: Code Quality Gates"){
-            steps{
-                script{
-                    sonarqube_code_quality()
-                }
-            }
-        }
-        
-        stage('Exporting environment variables') {
-            parallel{
-                stage("Backend env setup"){
-                    steps {
-                        script{
-                            dir("Automations"){
-                                sh "bash updatebackendnew.sh"
-                            }
-                        }
-                    }
-                }
-                
-                stage("Frontend env setup"){
-                    steps {
-                        script{
-                            dir("Automations"){
-                                sh "bash updatefrontendnew.sh"
-                            }
-                        }
-                    }
-                }
-            }
-        }
-        
-        stage("Docker: Build Images"){
-            steps{
-                script{
-                        dir('backend'){
-                            docker_build("wanderlust-backend-beta","${params.BACKEND_DOCKER_TAG}","manishvishwa801")
-                        }
+                    docker_push(
+                "wanderlust-backend-beta",
+                "${params.BACKEND_DOCKER_TAG}",
+                "manishvishwa801"
+            )
+
+            docker_push(
+                "wanderlust-frontend-beta",
+                "${params.FRONTEND_DOCKER_TAG}",
+                "manishvishwa801"
+            )
                     
-                        dir('frontend'){
-                            docker_build("wanderlust-frontend-beta","${params.FRONTEND_DOCKER_TAG}","manishvishwa801")
-                        }
-                }
+        }
             }
         }
-        
-        stage("Docker: Push to DockerHub"){
+
+        stage("Deploy"){
             steps{
                 script{
-                    docker_push("wanderlust-backend-beta","${params.BACKEND_DOCKER_TAG}","manishvishwa801") 
-                    docker_push("wanderlust-frontend-beta","${params.FRONTEND_DOCKER_TAG}","manishvishwa801")
+                    docker_compose("docker-compose.yml")
                 }
             }
         }
     }
+
     post{
-        success{
-            archiveArtifacts artifacts: '*.xml', followSymlinks: false
-            build job: "Wanderlust-CD", parameters: [
-                string(name: 'FRONTEND_DOCKER_TAG', value: "${params.FRONTEND_DOCKER_TAG}"),
-                string(name: 'BACKEND_DOCKER_TAG', value: "${params.BACKEND_DOCKER_TAG}")
-            ]
+        always{
+            //cleanWs()
         }
     }
 }
