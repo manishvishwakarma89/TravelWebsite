@@ -1,18 +1,17 @@
-version: "3.8"
 services:
   mongodb:
     container_name: mongo-service
     image: mongo:latest
     volumes:
-      - ./backend/data:/data
+      - /home/ubuntu/wanderlust/data:/data
     ports:
       - "27017:27017"
 
   backend:
     container_name: backend
-    build: ./backend
+    image: manishvishwa801/wanderlust-backend-beta:latest
     env_file:
-      - ./backend/.env.docker
+      - ./backend.env
     ports:
       - "31100:8080"
     depends_on:
@@ -20,20 +19,17 @@ services:
 
   frontend:
     container_name: frontend
-    build: ./frontend
+    image: manishvishwa801/wanderlust-frontend-beta:latest
     env_file:
-      - ./frontend/.env.docker
+      - ./frontend.env
     ports:
       - "5173:5173"
 
   redis:
     container_name: redis-service
     restart: unless-stopped
-    image: redis:7.0.5-alpine 
+    image: redis:7.0.5-alpine
     expose:
-        - 6379
+      - 6379
     depends_on:
       - mongodb
-
-volumes:
-  data:
